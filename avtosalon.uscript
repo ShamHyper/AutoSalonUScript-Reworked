@@ -1,0 +1,122 @@
+translations = {
+    "TARGET_NOT_FOUND": "Смотрите на машину, для начала",
+    "NOT_FOR_SALE": "Машина {0} не продаётся",
+    "USELL_USAGE": "Продать машину: /uSell <цена>",
+    "THIS_COSTS": "Машина {0} стоит: {1} XP.",
+    "SET_PURCHASABLE": "{0} выставлена на продажу! Цена: {1}",
+    "CANT_PURCHASE": "Недостаточно XP для покупки.",
+    "DOOR_PURCHASED": "Door purchased:  for {0} experience!\nSalvage and replace the door to let your group open it!",
+    "VEHICLE_PURCHASED": "Машина куплена за {0} XP!\nПерезайдите на сервер если не можете сесть в машину",
+    "UI_PRICE": "Цена: {0} XP",
+    "UI_TIP": "Введите /ubuy для покупки"
+};
+ 
+event onLoad(){
+    database.nonQuery("CREATE TABLE IF NOT EXISTS uPurchase_Doors(
+    id INT PRIMARY KEY,
+    price INT NOT NULL DEFAULT 0
+    );");
+    database.nonQuery("CREATE TABLE IF NOT EXISTS uPurchase_Vehicles(
+    id INT PRIMARY KEY,
+    price INT NOT NULL DEFAULT 0
+    );");
+}
+ 
+function isValidTarget(target){
+    if(target == null or !["barricade","vehicle"].contains(target.type)) return false;
+    if(target.type == "barricade" and target.door == null) return false;
+    return true;
+}
+ 
+function translate(player, ID, params){
+    if(params == null) params = [];
+    while(params.count != 4) params.add("");
+    player.message(translations[ID].format(params[0],params[1],params[2],params[3]));
+}
+ 
+command uBuy(){
+    permission = "upurchase";
+    allowedCaller = "player";
+    execute(){
+        target = player.look.getBarricade() != null ? player.look.getBarricade() :  player.look.getVehicle();
+        if(!isValidTarget(target))
+            return translate(player, "TARGET_NOT_FOUND");
+ 
+        targetName = target.type == "vehicle" ? "Vehicle" : "Door";
+        if(target.owner == null)
+            return translate(player, "NOT_FOR_SALE", [targetName.toLower()]);
+ 
+        DBcheck = database.firstRow("SELECT * FROM uPurchase_{0}s WHERE id = @p0;".format(targetName), target.instanceId);
+        if(DBcheck.count == 0)
+            return translate(player, "NOT_FOR_SALE", [targetName.toLower()]);
+        if(player.experience < DBcheck[1].toNumber())
+            return translate(player, "CANT_PURCHASE");
+
+        player.experience -= DBcheck[1].toNumber();
+
+        vehicle = player.look.getVehicle();
+        playerVehicleOwner = toPlayer(vehicle.owner);
+        if (playerVehicleOwner == null) return;
+        playerVehicleOwner.experience += DBcheck[1].toNumber();
+
+        translate(player, targetName.toUpper() + "_PURCHASED", [DBcheck[1]]);
+        database.nonQuery("DELETE FROM uPurchase_{0}s WHERE id = @p0;".format(targetName), target.instanceId);
+        target.owner = player.id;
+        target.group = player.steamGroup;
+    }
+            
+}
+ 
+command uPrice(){
+    permission = "upurchase";
+    allowedCaller = "player";
+    execute(){
+        target = player.look.getBarricade() != null ? player.look.getBarricade() : player.look.getVehicle();
+        if(!isValidTarget(target))
+            return translate(player, "TARGET_NOT_FOUND");
+ 
+        targetName = target.type == "vehicle" ? "Vehicle" : "Door";
+ 
+        if(target.owner == 0)
+            return translate(player, "NOT_FOR_SALE", [targetName.toLower()]);
+ 
+        DBcheck = database.firstRow("SELECT * FROM uPurchase_{0}s WHERE id = @p0;".format(targetName), target.instanceId);
+        if(DBcheck.count == 0)
+            return translate(player, "NOT_FOR_SALE", [targetName.toLower()]);
+ 
+        translate(player, "THIS_COSTS", [targetName.toLower(), DBcheck[1]]);
+    }
+}
+ 
+command uSell(amount){
+    permission = "upurchaseadmin";
+    allowedCaller = "player";
+    execute(){
+        target = player.look.getBarricade() != null ? player.look.getBarricade() :  player.look.getVehicle();
+        if(!isValidTarget(target))
+            return translate(player, "TARGET_NOT_FOUND");
+        if(amount == null)
+            return translate(player, "USELL_USAGE");
+        
+        targetName = target.type == "vehicle" ? "Vehicle" : "Door";
+        database.nonQuery("DELETE FROM uPurchase_{0}s WHERE id = @p0;".format(targetName), target.instanceId);
+        database.nonQuery("INSERT INTO uPurchase_{0}s (id, price) VALUES (@p0, @p1);".format(targetName), target.instanceId, amount);
+        translate(player, "SET_PURCHASABLE", [targetName, amount]);
+    }
+}
+ 
+event onPlayerGestured(player, gesture){
+    if(!["SALUTE"].contains(gesture)) return;
+ 
+    target = player.look.getBarricade() != null ? player.look.getBarricade() : player.look.getVehicle();
+    if(!isValidTarget(target) or target.owner == null)
+        return effectManager.clearUIById(7802,player.id);
+ 
+    targetName = target.type == "vehicle" ? "Vehicle" : "Door";
+    DBcheck = database.firstRow("SELECT * FROM uPurchase_{0}s WHERE id = @p0;".format(targetName), target.instanceId);
+    if(DBcheck.count == 0) return;
+ 
+    name = targetName == "Door" ? targetName : target.name;
+    effectManager.sendUI(7802, 7802, player.id, name, translations["UI_PRICE"].format(DBcheck[1]), translations["UI_TIP"]);
+    
+}
