@@ -8,7 +8,8 @@ translations = {
     "DOOR_PURCHASED": "Door purchased:  for {0} experience!\nSalvage and replace the door to let your group open it!",
     "VEHICLE_PURCHASED": "Машина куплена за {0} XP!\nПерезайдите на сервер если не можете сесть в машину",
     "UI_PRICE": "Цена: {0} XP",
-    "UI_TIP": "Введите /ubuy для покупки"
+    "UI_TIP": "Введите /ubuy для покупки",
+    "PID": "Это не твоя машина."
 };
  
 event onLoad(){
@@ -97,6 +98,9 @@ command uSell(amount){
             return translate(player, "TARGET_NOT_FOUND");
         if(amount == null)
             return translate(player, "USELL_USAGE");
+
+        if(target.owner != player.id)
+            return translate(player, "PID");
         
         targetName = target.type == "vehicle" ? "Vehicle" : "Door";
         database.nonQuery("DELETE FROM uPurchase_{0}s WHERE id = @p0;".format(targetName), target.instanceId);
