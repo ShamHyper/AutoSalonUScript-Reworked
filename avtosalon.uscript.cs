@@ -1,3 +1,5 @@
+//Adding this file to support VS Code syntax highlighting
+
 translations = {
     "TARGET_NOT_FOUND": "Смотрите на машину, для начала",
     "NOT_FOR_SALE": "Машина {0} не продаётся",
